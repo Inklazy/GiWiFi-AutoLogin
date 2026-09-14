@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- M3 Primary Dark -->
+    <color name="md_theme_light_primary">#A8C7FA</color>
+    <color name="md_theme_light_onPrimary">#042E70</color>
+    <color name="md_theme_light_primaryContainer">#0842A0</color>
+    <color name="md_theme_light_onPrimaryContainer">#D3E3FD</color>
+
+    <!-- M3 Secondary Dark -->
+    <color name="md_theme_light_secondary">#BEC6DC</color>
+    <color name="md_theme_light_onSecondary">#283141</color>
+    <color name="md_theme_light_secondaryContainer">#3E4758</color>
+    <color name="md_theme_light_onSecondaryContainer">#DAE2F9</color>
+
+    <!-- M3 Surface & Containers Dark -->
+    <color name="md_theme_light_background">#111318</color>
+    <color name="md_theme_light_onBackground">#E2E2E6</color>
+    <color name="md_theme_light_surface">#111318</color>
+    <color name="md_theme_light_onSurface">#E2E2E6</color>
+    <color name="md_theme_light_onSurfaceVariant">#C4C6D0</color>
+    <color name="md_theme_light_surfaceContainerLowest">#0C0E13</color>
+    <color name="md_theme_light_surfaceContainerLow">#191C20</color>
+    <color name="md_theme_light_surfaceContainer">#1D2024</color>
+    <color name="md_theme_light_surfaceContainerHigh">#282A2F</color>
+
+    <!-- M3 Outlines Dark -->
+    <color name="md_theme_light_outline">#8E918F</color>
+    <color name="md_theme_light_outlineVariant">#444746</color>
+
+    <!-- Status Semantic Colors Dark -->
+    <color name="status_neutral_bg">#2D3135</color>
+    <color name="status_neutral_text">#C4C7C5</color>
+    <color name="status_success_bg">#0F3820</color>
+    <color name="status_success_text">#6DD58C</color>
+    <color name="status_warning_bg">#3D2E05</color>
+    <color name="status_warning_text">#F5C542</color>
+    <color name="status_error_bg">#3E1A18</color>
+    <color name="status_error_text">#F2B8B5</color>
+    <color name="status_info_bg">#0842A0</color>
+    <color name="status_info_text">#D3E3FD</color>
+
+    <!-- Console Terminal -->
+    <color name="terminal_bg">#151719</color>
+    <color name="terminal_header_bg">#1D2024</color>
+    <color name="terminal_text">#E2E2E6</color>
+    <color name="terminal_text_secondary">#8E918F</color>
+    <color name="terminal_accent">#A8C7FA</color>
+    <color name="terminal_border">#2C3036</color>
+</resources>

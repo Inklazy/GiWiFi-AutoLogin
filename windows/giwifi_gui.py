@@ -19,6 +19,9 @@ import urllib.error
 import http.cookiejar
 from html.parser import HTMLParser
 import threading
+import tkinter as tk
+from tkinter import ttk, messagebox
+import ctypes
 
 # 获取程序所在根目录 (兼容直接运行与 PyInstaller 打包后的路径)
 if getattr(sys, 'frozen', False):
@@ -386,91 +389,348 @@ def run_silent():
     engine.log("超过最大尝试次数，认证未成功。")
     sys.exit(1)
 
-# ==================== 5. 图形配置界面 (Tkinter) ====================
+
+# ==================== 5. 图形配置界面 (Fluent 现代桌面风格) ====================
+
+class FluentButton(tk.Canvas):
+    """Fluent 风格按钮：支持圆角、悬浮/按下动效、禁用态与响应式重绘"""
+    def __init__(self, parent, text='', command=None, bg='#0067C0', hover_bg='#1879D3', pressed_bg='#005A9E',
+                 fg='#FFFFFF', disabled_bg='#E5E5E5', disabled_fg='#A0A0A0',
+                 border_color=None, radius=6, font=('Microsoft YaHei UI', 9, 'bold'), height=36, **kwargs):
+        super().__init__(parent, height=height, bg=parent['bg'], highlightthickness=0, **kwargs)
+        self.text = text
+        self.command = command
+        self.normal_bg = bg
+        self.hover_bg = hover_bg
+        self.pressed_bg = pressed_bg
+        self.fg = fg
+        self.disabled_bg = disabled_bg
+        self.disabled_fg = disabled_fg
+        self.border_color = border_color
+        self.radius = radius
+        self.font = font
+        self.state = 'normal'
+        self.current_bg = bg
+
+        self.bind('<Configure>', self._redraw)
+        self.bind('<Enter>', self._on_enter)
+        self.bind('<Leave>', self._on_leave)
+        self.bind('<Button-1>', self._on_press)
+        self.bind('<ButtonRelease-1>', self._on_release)
+
+    def _redraw(self, event=None):
+        w = self.winfo_width()
+        h = self.winfo_height()
+        self.delete('all')
+        if w <= 1 or h <= 1:
+            return
+        r = self.radius
+        pts = [
+            r, 0, w - r, 0, w, 0, w, r,
+            w, h - r, w, h, w - r, h, r, h,
+            0, h, 0, h - r, 0, r, 0, 0
+        ]
+        color = self.disabled_bg if self.state == 'disabled' else self.current_bg
+        text_color = self.disabled_fg if self.state == 'disabled' else self.fg
+        outline = self.border_color if self.border_color and self.state != 'disabled' else ''
+        self.create_polygon(pts, fill=color, smooth=True, outline=outline, width=1)
+        self.create_text(w // 2, h // 2, text=self.text, fill=text_color, font=self.font)
+
+    def set_text(self, text):
+        self.text = text
+        self._redraw()
+
+    def set_state(self, state):
+        self.state = state
+        self.config(cursor='hand2' if state == 'normal' else 'arrow')
+        self._redraw()
+
+    def config(self, **kwargs):
+        if 'text' in kwargs:
+            self.set_text(kwargs['text'])
+        if 'state' in kwargs:
+            self.set_state(kwargs['state'])
+        if 'command' in kwargs:
+            self.command = kwargs['command']
+
+    def _on_enter(self, e):
+        if self.state == 'disabled': return
+        self.current_bg = self.hover_bg
+        self._redraw()
+
+    def _on_leave(self, e):
+        if self.state == 'disabled': return
+        self.current_bg = self.normal_bg
+        self._redraw()
+
+    def _on_press(self, e):
+        if self.state == 'disabled': return
+        self.current_bg = self.pressed_bg
+        self._redraw()
+
+    def _on_release(self, e):
+        if self.state == 'disabled': return
+        self.current_bg = self.hover_bg
+        self._redraw()
+        if self.command:
+            self.command()
+
+
+class ToggleSwitch(tk.Canvas):
+    """Windows 11 风格的 Pill Toggle Switch 控件"""
+    def __init__(self, parent, variable=None, command=None, bg='#FFFFFF', active_color='#0067C0', inactive_color='#8A8A8A', thumb_color='#FFFFFF', **kwargs):
+        super().__init__(parent, width=42, height=22, bg=bg, highlightthickness=0, cursor='hand2', **kwargs)
+        self.variable = variable
+        self.command = command
+        self.active_color = active_color
+        self.inactive_color = inactive_color
+        self.thumb_color = thumb_color
+
+        self.bind('<Button-1>', self._toggle)
+        if self.variable:
+            self.variable.trace_add('write', lambda *_: self._redraw())
+        self._redraw()
+
+    def _toggle(self, event=None):
+        if self.variable:
+            self.variable.set(not self.variable.get())
+        if self.command:
+            self.command()
+
+    def _redraw(self):
+        self.delete('all')
+        is_on = self.variable.get() if self.variable else True
+        track_color = self.active_color if is_on else self.inactive_color
+        r = 10
+        w, h = 40, 20
+        x0, y0 = 1, 1
+        x1, y1 = x0 + w, y0 + h
+        self.create_polygon([
+            x0+r, y0, x1-r, y0, x1, y0, x1, y0+r,
+            x1, y1-r, x1, y1, x1-r, y1, x0+r, y1,
+            x0, y1, x0, y1-r, x0, y0+r, x0, y0
+        ], fill=track_color, outline='', smooth=True)
+
+        thumb_r = 7
+        cy = y0 + h // 2
+        cx = (x1 - r) if is_on else (x0 + r)
+        self.create_oval(cx - thumb_r, cy - thumb_r, cx + thumb_r, cy + thumb_r, fill=self.thumb_color, outline='')
+
+
+class RoundedBadge(tk.Canvas):
+    """Fluent 胶囊状态栏徽标"""
+    def __init__(self, parent, text='状态: 准备就绪', bg='#F3F3F3', fg='#5A5A5A', font=('Microsoft YaHei UI', 9, 'bold'), height=32, **kwargs):
+        super().__init__(parent, height=height, bg=parent['bg'], highlightthickness=0, **kwargs)
+        self.text = text
+        self.badge_bg = bg
+        self.fg = fg
+        self.font = font
+        self.bind('<Configure>', self._redraw)
+
+    def _redraw(self, event=None):
+        w = self.winfo_width()
+        h = self.winfo_height()
+        self.delete('all')
+        if w <= 1 or h <= 1: return
+        r = h // 2
+        pts = [
+            r, 0, w - r, 0, w, 0, w, r,
+            w, h - r, w, h, w - r, h, r, h,
+            0, h, 0, h - r, 0, r, 0, 0
+        ]
+        self.create_polygon(pts, fill=self.badge_bg, smooth=True, outline='')
+        self.create_text(w // 2, h // 2, text=self.text, fill=self.fg, font=self.font)
+
+    def update_badge(self, text, bg, fg):
+        self.text = text
+        self.badge_bg = bg
+        self.fg = fg
+        self._redraw()
+
+    def config(self, **kwargs):
+        if 'text' in kwargs:
+            self.text = kwargs['text']
+        if 'bg' in kwargs:
+            self.badge_bg = kwargs['bg']
+        if 'fg' in kwargs:
+            self.fg = kwargs['fg']
+        self._redraw()
+
+
+class RoundedEntry(tk.Frame):
+    """带有微圆角与聚焦高光边框的 Fluent 文本框"""
+    def __init__(self, parent, placeholder='', show='', font=('Microsoft YaHei UI', 9), **kwargs):
+        super().__init__(parent, bg=parent['bg'], **kwargs)
+        self.canvas = tk.Canvas(self, height=36, bg=parent['bg'], highlightthickness=0)
+        self.canvas.pack(fill='both', expand=True)
+
+        self.entry = tk.Entry(self.canvas, font=font, show=show, bg='#FFFFFF', relief='flat', bd=0, highlightthickness=0)
+        self.canvas_window = self.canvas.create_window(12, 18, window=self.entry, anchor='w')
+
+        self.border_color = '#D1D1D1'
+        self.focused_color = '#0067C0'
+        self.is_focused = False
+
+        self.canvas.bind('<Configure>', self._redraw)
+        self.entry.bind('<FocusIn>', self._on_focus_in)
+        self.entry.bind('<FocusOut>', self._on_focus_out)
+
+    def _redraw(self, event=None):
+        w = self.canvas.winfo_width()
+        h = self.canvas.winfo_height()
+        self.canvas.delete('border')
+        if w <= 1 or h <= 1: return
+        r = 6
+        pts = [
+            r, 1, w - r, 1, w - 1, 1, w - 1, r,
+            w - 1, h - r, w - 1, h - 1, w - r, h - 1, r, h - 1,
+            1, h - 1, 1, h - r, 1, r, 1, 1
+        ]
+        color = self.focused_color if self.is_focused else self.border_color
+        width = 2 if self.is_focused else 1
+        self.canvas.create_polygon(pts, fill='#FFFFFF', smooth=True, outline=color, width=width, tags='border')
+        self.canvas.tag_lower('border')
+        self.canvas.coords(self.canvas_window, 12, h // 2)
+        self.entry.config(width=max(1, (w - 24) // 9))
+
+    def _on_focus_in(self, e):
+        self.is_focused = True
+        self._redraw()
+
+    def _on_focus_out(self, e):
+        self.is_focused = False
+        self._redraw()
+
+    def get(self):
+        return self.entry.get()
+
+    def insert(self, index, string):
+        self.entry.insert(index, string)
+
+
 def run_gui():
-    import tkinter as tk
-    from tkinter import ttk, messagebox
 
     root = tk.Tk()
-    root.title("GiWiFi 校园网自动认证配置向导")
-    root.geometry("460x520")
-    root.resizable(False, False)
+    root.title("GiWiFi 校园网认证助手")
+    root.geometry("480x600")
+    root.minsize(440, 560)
+    root.resizable(True, True)
 
-    # 尝试设置居中
+    # 启用 Windows 11 DWM 圆角与浅色窗口边框增强
+    try:
+        root.update()
+        hwnd = ctypes.windll.user32.GetAncestor(root.winfo_id(), 2)
+        if hwnd:
+            DWMWA_WINDOW_CORNER_PREFERENCE = 33
+            pref = ctypes.c_int(2)  # DWMWCP_ROUND
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ctypes.byref(pref), ctypes.sizeof(pref))
+    except Exception:
+        pass
+
+    # 窗口居中
     root.update_idletasks()
-    x = (root.winfo_screenwidth() - 460) // 2
-    y = (root.winfo_screenheight() - 520) // 2
+    x = (root.winfo_screenwidth() - 480) // 2
+    y = (root.winfo_screenheight() - 600) // 2
     root.geometry(f"+{x}+{y}")
 
-    # 配色与样式
-    bg_color = "#F8FAFC"
-    card_color = "#FFFFFF"
-    primary_color = "#0284C7"
+    # Fluent Design System 色彩
+    bg_color = "#F3F3F3"          # 浅灰色背景
+    card_bg = "#FFFFFF"           # 白色卡片 Surface
+    text_primary = "#1B1B1B"      # 一级文字
+    text_secondary = "#5E5E5E"    # 二级次要文字
+    border_subtle = "#E5E5E5"     # 细边框
+
     root.configure(bg=bg_color)
 
-    style = ttk.Style()
-    style.theme_use('clam')
-    style.configure("TLabel", background=card_color, font=("微软雅黑", 9))
-    style.configure("Header.TLabel", background=bg_color, font=("微软雅黑", 14, "bold"), foreground="#0F172A")
-    style.configure("Sub.TLabel", background=bg_color, font=("微软雅黑", 9), foreground="#64748B")
+    # 顶部 Header 区域
+    header_frame = tk.Frame(root, bg=bg_color)
+    header_frame.pack(fill="x", padx=24, pady=(20, 10))
 
-    # 顶部标题
-    lbl_title = ttk.Label(root, text="GiWiFi 校园网认证助手", style="Header.TLabel")
-    lbl_title.pack(pady=(18, 2))
-    lbl_sub = ttk.Label(root, text="开机静默登录 · 一键认证 · 离线免安装版", style="Sub.TLabel")
-    lbl_sub.pack(pady=(0, 12))
+    lbl_title = tk.Label(header_frame, text="GiWiFi 校园网认证助手", font=("Microsoft YaHei UI", 16, "bold"),
+                         bg=bg_color, fg=text_primary)
+    lbl_title.pack(anchor="w")
 
-    # 主卡片容器
-    card = tk.Frame(root, bg=card_color, padx=20, pady=16, relief="solid", bd=1, highlightthickness=0)
-    card.configure(highlightbackground="#E2E8F0", highlightcolor="#E2E8F0")
-    card.pack(fill="x", padx=20)
+    lbl_sub = tk.Label(header_frame, text="开机静默登录 · 一键认证 · 离线免安装版", font=("Microsoft YaHei UI", 9),
+                       bg=bg_color, fg=text_secondary)
+    lbl_sub.pack(anchor="w", pady=(2, 8))
+
+    # 状态指示胶囊栏
+    lbl_status = RoundedBadge(header_frame, text="状态: 准备就绪", bg="#E8EAED", fg="#444746")
+    lbl_status.pack(fill="x")
+
+    # 核心配置 Card (Surface Container)
+    card = tk.Frame(root, bg=card_bg, padx=20, pady=16, highlightbackground=border_subtle, highlightthickness=1)
+    card.pack(fill="x", padx=24, pady=(4, 12))
+
+    lbl_card_title = tk.Label(card, text="上网凭据配置", font=("Microsoft YaHei UI", 10, "bold"), bg=card_bg, fg=text_primary)
+    lbl_card_title.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
 
     # 账号
-    tk.Label(card, text="上网账号 / 手机号:", bg=card_color, fg="#1E293B", font=("微软雅黑", 9, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 4))
-    ent_account = tk.Entry(card, font=("微软雅黑", 10), bg="#F1F5F9", relief="flat", bd=6)
-    ent_account.grid(row=1, column=0, columnspan=2, sticky="we", pady=(0, 10))
+    tk.Label(card, text="上网账号 / 手机号:", bg=card_bg, fg=text_secondary, font=("Microsoft YaHei UI", 9)).grid(row=1, column=0, sticky="w", pady=(0, 4))
+    ent_account = RoundedEntry(card, font=("Microsoft YaHei UI", 10))
+    ent_account.grid(row=2, column=0, columnspan=2, sticky="we", pady=(0, 10))
 
     # 密码
-    tk.Label(card, text="上网密码:", bg=card_color, fg="#1E293B", font=("微软雅黑", 9, "bold")).grid(row=2, column=0, sticky="w", pady=(0, 4))
-    ent_password = tk.Entry(card, font=("微软雅黑", 10), show="•", bg="#F1F5F9", relief="flat", bd=6)
-    ent_password.grid(row=3, column=0, columnspan=2, sticky="we", pady=(0, 10))
+    tk.Label(card, text="上网密码:", bg=card_bg, fg=text_secondary, font=("Microsoft YaHei UI", 9)).grid(row=3, column=0, sticky="w", pady=(0, 4))
+    ent_password = RoundedEntry(card, font=("Microsoft YaHei UI", 10), show="•")
+    ent_password.grid(row=4, column=0, columnspan=2, sticky="we", pady=(0, 10))
 
-    # 开机自启复选框
+    # 开机自启 Switch 开关行
     var_autostart = tk.BooleanVar(value=True)
-    chk_auto = tk.Checkbutton(card, text="开启 Windows 开机静默自动认证 (无黑框后台运行)", variable=var_autostart,
-                              bg=card_color, fg="#334155", font=("微软雅黑", 8), activebackground=card_color)
-    chk_auto.grid(row=4, column=0, columnspan=2, sticky="w", pady=(2, 12))
+    switch_frame = tk.Frame(card, bg=card_bg)
+    switch_frame.grid(row=5, column=0, columnspan=2, sticky="we", pady=(4, 6))
 
-    # 状态栏文字
-    lbl_status = tk.Label(card, text="状态: 准备就绪", bg="#E2E8F0", fg="#475569", font=("微软雅黑", 8, "bold"), padx=8, pady=4)
-    lbl_status.grid(row=5, column=0, columnspan=2, sticky="we", pady=(0, 10))
+    sw_auto = ToggleSwitch(switch_frame, variable=var_autostart, bg=card_bg)
+    sw_auto.pack(side="left", padx=(0, 10))
+
+    lbl_switch_text = tk.Label(switch_frame, text="Windows 开机静默自动认证 (后台无黑框)", bg=card_bg, fg=text_primary, font=("Microsoft YaHei UI", 9))
+    lbl_switch_text.pack(side="left")
 
     card.columnconfigure(0, weight=1)
 
-    # 操作按钮区域
-    btn_frame = tk.Frame(root, bg=bg_color)
-    btn_frame.pack(fill="x", padx=20, pady=8)
+    # 按钮操作区域
+    action_frame = tk.Frame(root, bg=bg_color)
+    action_frame.pack(fill="x", padx=24, pady=(0, 10))
 
-    btn_login = tk.Button(btn_frame, text="保存配置并立即认证", bg="#0284C7", fg="#FFFFFF", font=("微软雅黑", 10, "bold"),
-                          relief="flat", activebackground="#0369A1", activeforeground="#FFFFFF", cursor="hand2")
-    btn_login.pack(fill="x", ipady=6)
+    # 主动作按钮 (Fluent Accent Primary Filled)
+    btn_login = FluentButton(action_frame, text="保存配置并立即认证", height=38, radius=8,
+                             bg="#0067C0", hover_bg="#1879D3", pressed_bg="#005A9E")
+    btn_login.pack(fill="x", pady=(0, 8))
 
-    sub_btn_frame = tk.Frame(root, bg=bg_color)
-    sub_btn_frame.pack(fill="x", padx=20, pady=(2, 8))
+    # 次要操作按钮行
+    sub_action_frame = tk.Frame(action_frame, bg=bg_color)
+    sub_action_frame.pack(fill="x")
 
-    btn_test = tk.Button(sub_btn_frame, text="仅测试网络", bg="#E2E8F0", fg="#334155", font=("微软雅黑", 8),
-                         relief="flat", cursor="hand2")
-    btn_test.pack(side="left", padx=(0, 5))
+    btn_test = FluentButton(sub_action_frame, text="仅测试网络", height=32, radius=6,
+                            bg="#FDFDFD", hover_bg="#F3F3F3", pressed_bg="#EAEAEA", fg="#242424",
+                            border_color="#D1D1D1")
+    sub_action_frame.columnconfigure(0, weight=1)
+    sub_action_frame.columnconfigure(1, weight=1)
+    btn_test.grid(row=0, column=0, sticky="we", padx=(0, 6))
 
-    btn_uninstall = tk.Button(sub_btn_frame, text="卸载开机自启", bg="#E2E8F0", fg="#94A3B8", font=("微软雅黑", 8),
-                              relief="flat", cursor="hand2")
-    btn_uninstall.pack(side="right")
+    btn_uninstall = FluentButton(sub_action_frame, text="卸载开机自启", height=32, radius=6,
+                                bg="#FDFDFD", hover_bg="#F3F3F3", pressed_bg="#EAEAEA", fg="#5E5E5E",
+                                border_color="#D1D1D1")
+    btn_uninstall.grid(row=0, column=1, sticky="we", padx=(6, 0))
 
-    # 日志控制台
-    log_frame = tk.Frame(root, bg="#1E1E24", padx=10, pady=8)
-    log_frame.pack(fill="both", expand=True, padx=20, pady=(4, 16))
+    # 运行日志控制台 (Fluent Dark Terminal Surface)
+    log_frame = tk.Frame(root, bg="#1E2022", padx=12, pady=10, highlightbackground="#333538", highlightthickness=1)
+    log_frame.pack(fill="both", expand=True, padx=24, pady=(0, 18))
 
-    txt_log = tk.Text(log_frame, bg="#1E1E24", fg="#E2E8F0", font=("Consolas", 8), relief="flat", height=7)
+    log_header = tk.Frame(log_frame, bg="#1E2022")
+    log_header.pack(fill="x", pady=(0, 6))
+
+    lbl_log_title = tk.Label(log_header, text="运行状态与控制台日志", bg="#1E2022", fg="#8E918F", font=("Microsoft YaHei UI", 8, "bold"))
+    lbl_log_title.pack(side="left")
+
+    def clear_log():
+        txt_log.delete("1.0", "end")
+
+    btn_clear_log = tk.Label(log_header, text="清屏", bg="#1E2022", fg="#7DACF8", font=("Microsoft YaHei UI", 8), cursor="hand2")
+    btn_clear_log.pack(side="right")
+    btn_clear_log.bind("<Button-1>", lambda _: clear_log())
+
+    txt_log = tk.Text(log_frame, bg="#1E2022", fg="#E3E3E3", insertbackground="#FFFFFF", font=("Consolas", 8), relief="flat", bd=0)
     txt_log.pack(fill="both", expand=True)
 
     def append_log(msg):
@@ -499,7 +759,7 @@ def run_gui():
             return
 
         btn_login.config(state="disabled", text="正在认证中...")
-        lbl_status.config(text="状态: 正在向网关认证...", bg="#E0F2FE", fg="#0369A1")
+        lbl_status.config(text="状态: 正在向网关认证...", bg="#D3E3FD", fg="#041E49")
 
         save_config(acc, pwd, var_autostart.get())
 
@@ -515,10 +775,10 @@ def run_gui():
             def update_ui():
                 btn_login.config(state="normal", text="保存配置并立即认证")
                 if ok:
-                    lbl_status.config(text="状态: 认证成功！", bg="#DCFCE7", fg="#15803D")
+                    lbl_status.config(text="状态: 认证成功！", bg="#C4EED0", fg="#0A6E31")
                     messagebox.showinfo("成功", "GiWiFi 校园网认证成功！\n开机自启已就绪，下次开机将自动在后台静默登录。")
                 else:
-                    lbl_status.config(text="状态: 认证失败", bg="#FEE2E2", fg="#B91C1C")
+                    lbl_status.config(text="状态: 认证失败", bg="#F9DEDC", fg="#8C1D18")
             root.after(0, update_ui)
 
         threading.Thread(target=task, daemon=True).start()
@@ -530,9 +790,9 @@ def run_gui():
             def update_ui():
                 btn_test.config(state="normal")
                 if online:
-                    lbl_status.config(text="状态: 外网已连通", bg="#DCFCE7", fg="#15803D")
+                    lbl_status.config(text="状态: 外网已连通", bg="#C4EED0", fg="#0A6E31")
                 else:
-                    lbl_status.config(text="状态: 外网未连通", bg="#FEF3C7", fg="#B45309")
+                    lbl_status.config(text="状态: 外网未连通", bg="#FFE7A5", fg="#7C4A03")
             root.after(0, update_ui)
         threading.Thread(target=task, daemon=True).start()
 
