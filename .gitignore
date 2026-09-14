@@ -1,0 +1,57 @@
+# Git Ignore for GiWiFi-AutoLogin
+
+# Personal config and credentials (PROTECT PRIVACY)
+/giwifi_login.py
+/giwifi_login_personal.py
+windows/giwifi_login_personal.py
+/run_silent.vbs
+/一键注册开机自启.bat
+/卸载开机自启.bat
+/GiWiFi*.apk
+/GiWiFi*.zip
+/GiWiFi*分享版/
+*.log
+*.ini
+config.ini
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.spec
+shareable/build/
+shareable/dist/
+
+# Development test / scratch files
+analyze*.py
+test*.py
+test*.js
+dump*.py
+serialized.txt
+create_crypto_module.js
+crypto-giwifi.js
+phone_screen*.png
+android_native/
+shareable/
+uniapp_giwifi/
+
+# Android Build
+.gradle/
+**/build/
+android/app/build/
+android/.gradle/
+*.iml
+.idea/
+local.properties
+.cxx/
+
+# OS Specific
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Release outputs to keep:
+!release/
+!release/*.apk
+!release/*.zip
+!docs/screenshots/*.png
