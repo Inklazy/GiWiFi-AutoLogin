@@ -113,7 +113,18 @@ jobs:
           New-Item -ItemType Directory -Force -Path $staging, $dist | Out-Null
           Copy-Item 'build/windows-dist/GiWiFi_AutoLogin.exe' $staging
           Copy-Item 'windows/使用说明.txt' $staging
-          Compress-Archive -Path (Join-Path $staging '*') -DestinationPath (Join-Path $dist "GiWiFi-AutoLogin-Windows-x64-$version.zip") -Force
+          $files = @((Join-Path $staging 'GiWiFi_AutoLogin.exe'), (Join-Path $staging '使用说明.txt'))
+          $archive = Join-Path $dist "GiWiFi-AutoLogin-Windows-x64-$version.zip"
+          Compress-Archive -LiteralPath $files -DestinationPath $archive -Force
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($archive)
+          try {
+            $names = @($zip.Entries | ForEach-Object { $_.FullName })
+            if ($names.Count -ne 2 -or @(Compare-Object $names @('GiWiFi_AutoLogin.exe', '使用说明.txt')).Count -ne 0) {
+              throw 'Windows ZIP must contain only GiWiFi_AutoLogin.exe and 使用说明.txt'
+            }
+          } finally {
+            $zip.Dispose()
+          }
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
@@ -144,11 +155,19 @@ jobs:
 
       - name: Verify release files
         shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          find dist -maxdepth 1 -type f -print
-          test "$(find dist -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 1
-          test "$(find dist -maxdepth 1 -type f -name '*.zip' | wc -l)" -eq 1
+          version="${TAG#v}"
+          test "$(find dist -maxdepth 1 -type f | wc -l)" -eq 2
+          test -s "dist/GiWiFi-AutoLogin-Android-${version}.apk"
+          test -s "dist/GiWiFi-AutoLogin-Windows-x64-${version}.zip"
+          python - <<'PY'
+          import glob, zipfile
+          with zipfile.ZipFile(glob.glob('dist/*.zip')[0]) as archive:
+              assert sorted(archive.namelist()) == sorted(['GiWiFi_AutoLogin.exe', '使用说明.txt']), 'Unexpected Windows ZIP contents'
+          PY
 
       - name: Create or update GitHub Release
         env:
@@ -159,8 +178,12 @@ jobs:
           set -euo pipefail
           version="${TAG#v}"
           notes_file=".github/release-notes/${version}.md"
-          if [ -f "$notes_file" ]; then
-            gh release create "$TAG" dist/* --verify-tag --title "GiWiFi-AutoLogin ${TAG}" --notes-file "$notes_file"
+          if gh release view "$TAG" --json isDraft > release-state.json 2>/dev/null; then
+            python -c 'import json; assert json.load(open("release-state.json"))["isDraft"], "Refusing to overwrite an already published release"'
+          elif [ -f "$notes_file" ]; then
+            gh release create "$TAG" --draft --verify-tag --title "GiWiFi-AutoLogin ${TAG}" --notes-file "$notes_file"
           else
-            gh release create "$TAG" dist/* --verify-tag --title "GiWiFi-AutoLogin ${TAG}" --generate-notes
+            gh release create "$TAG" --draft --verify-tag --title "GiWiFi-AutoLogin ${TAG}" --generate-notes
           fi
+          gh release upload "$TAG" "dist/GiWiFi-AutoLogin-Android-${version}.apk" "dist/GiWiFi-AutoLogin-Windows-x64-${version}.zip" --clobber
+          gh release edit "$TAG" --draft=false --latest --title "GiWiFi-AutoLogin ${TAG}"

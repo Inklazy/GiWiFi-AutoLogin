@@ -13,6 +13,17 @@ windows/giwifi_login_personal.py
 *.log
 *.ini
 config.ini
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+credentials*.json
+secrets*.json
+**/debug.keystore
 
 # Python
 __pycache__/
